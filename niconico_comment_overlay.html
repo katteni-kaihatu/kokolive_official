@@ -87,24 +87,32 @@
       container.appendChild(comment);
     }
 
-    // WebSocket接続
-    const ws = new WebSocket("wss://wsecho.kokoa.dev/kokolive/official/comment");
-    ws.onmessage = function(event) {
-      try {
-        const data = JSON.parse(event.data);
-        if (data.text) {
-          showComment(data.text);
+    // WebSocket接続（自動再接続付き）
+    let ws;
+    function connectWS() {
+      ws = new WebSocket("wss://wsecho.kokoa.dev/kokolive/official/comment");
+      ws.onmessage = function(event) {
+        try {
+          const data = JSON.parse(event.data);
+          if (data.text) {
+            showComment(data.text);
+          }
+        } catch (e) {
+          // 無視
         }
-      } catch (e) {
-        // 無視
-      }
-    };
-    ws.onopen = function() {
-      // 必要ならここで何か
-    };
-    ws.onclose = function() {
-      // 再接続など必要なら
-    };
+      };
+      ws.onopen = function() {
+        // 必要ならここで何か
+      };
+      ws.onclose = function() {
+        // 3秒後に再接続
+        setTimeout(connectWS, 3000);
+      };
+      ws.onerror = function() {
+        // エラー時もcloseが呼ばれるので何もしない
+      };
+    }
+    connectWS();
   </script>
 </body>
 </html>
