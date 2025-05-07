@@ -33,6 +33,10 @@
       pointer-events: none;
       animation: move-left 8s linear forwards;
     }
+    .spin {
+      display: inline-block;
+      animation: spin 1s linear infinite;
+    }
     @keyframes move-left {
       from {
         transform: translateX(100vw);
@@ -40,6 +44,10 @@
       to {
         transform: translateX(-100%);
       }
+    }
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
     }
   </style>
 </head>
@@ -67,11 +75,195 @@
       usedRows[row] = 0;
     }
 
-    function showComment(text) {
+    async function showComment(data) {
       const container = document.getElementById('comment-container');
       const comment = document.createElement('div');
       comment.className = 'comment';
-      comment.textContent = text;
+
+      // アイコン画像
+      if (data.user_avatar_url) {
+        const avatar = document.createElement('img');
+        avatar.src = data.user_avatar_url;
+        avatar.alt = '';
+        avatar.style.height = '5vw';
+        avatar.style.width = '5vw';
+        avatar.style.verticalAlign = 'middle';
+        avatar.style.borderRadius = '50%';
+        avatar.style.marginRight = '0.5vw';
+        comment.appendChild(avatar);
+      }
+
+      // テキスト＋Misskey絵文字＋倍率構文＋spin構文（ネスト対応）
+      const text = data.text;
+      let nodes = [];
+      const emojiFetches = [];
+
+      // 再帰的パーサ
+      async function parseBlocks(str, fontSize = '5vw', spin = false) {
+        const nodes = [];
+        let i = 0;
+        while (i < str.length) {
+          if (str.startsWith('$[x', i)) {
+            // $[xN ...] 構文（{}なし、]まで or ネスト対応）
+            let j = i + 3;
+            let scale = '';
+            while (j < str.length && /[0-9]/.test(str[j])) scale += str[j++];
+            if (!scale || str[j] !== ' ') { nodes.push(document.createTextNode(str[i++])); continue; }
+            j++; // skip space
+            // 中身を次の$[または]まで（ネスト対応）
+            let nest = 0, k = j;
+            while (k < str.length) {
+              if (str.startsWith('$[', k)) nest++;
+              if (str[k] === ']') {
+                if (nest === 0) break;
+                nest--;
+              }
+              k++;
+            }
+            if (k < str.length) {
+              const inner = str.slice(j, k);
+              const span = document.createElement('span');
+              const newFontSize = (5 * parseInt(scale)) + 'vw';
+              span.style.fontSize = newFontSize;
+              span.style.verticalAlign = 'middle';
+              const innerNodes = await parseBlocks(inner, newFontSize, spin);
+              innerNodes.forEach(n => span.appendChild(n));
+              nodes.push(span);
+              i = k + 1;
+              continue;
+            }
+            nodes.push(document.createTextNode(str[i++]));
+          } else if (str.startsWith('$[spin', i)) {
+            // $[spin ...] 構文
+            let j = i + 6;
+            if (str[j] !== ' ') { nodes.push(document.createTextNode(str[i++])); continue; }
+            j++; // skip space
+            // 中身の[]をパース
+            if (str[j] === '[') {
+              // $[spin [ ... ]] ←未対応（仕様上不要）
+              nodes.push(document.createTextNode(str[i++]));
+              continue;
+            }
+            // $[spin ...] → $[spin ...]の]を探す（ネスト考慮）
+            let k = j, nest = 0;
+            while (k < str.length) {
+              if (str[k] === '$' && str.startsWith('$[spin', k)) nest++;
+              if (str[k] === ']') {
+                if (nest === 0) break;
+                nest--;
+              }
+              k++;
+            }
+            if (k < str.length) {
+              const inner = str.slice(j, k);
+              const spinSpan = document.createElement('span');
+              spinSpan.className = 'spin';
+              spinSpan.style.display = 'inline-block';
+              const innerNodes = await parseBlocks(inner, fontSize, true);
+              innerNodes.forEach(n => spinSpan.appendChild(n));
+              nodes.push(spinSpan);
+              i = k + 1;
+              continue;
+            }
+            nodes.push(document.createTextNode(str[i++]));
+          } else if (str.startsWith('$[', i)) {
+            // 未知の$[構文
+            nodes.push(document.createTextNode(str[i++]));
+          } else {
+            // 通常テキスト/emoji
+            // 次の$[までをparseTextWithEmoji
+            let next = str.indexOf('$[', i);
+            if (next === -1) next = str.length;
+            const arr = await parseTextWithEmoji(str.slice(i, next), emojiFetches, fontSize, spin);
+            arr.forEach(n => nodes.push(n));
+            i = next;
+          }
+        }
+        return nodes;
+      }
+
+      // --- ユーティリティ: emoji展開 ---
+      async function parseTextWithEmoji(str, emojiFetches, fontSize, spin) {
+        const regex = /(:[a-zA-Z0-9_]+:)/g;
+        let last = 0;
+        let m;
+        const arr = [];
+        while ((m = regex.exec(str)) !== null) {
+          if (m.index > last) {
+            arr.push(document.createTextNode(str.slice(last, m.index)));
+          }
+          const emojiId = m[1].slice(1, -1);
+          const img = document.createElement('img');
+          img.alt = m[1];
+          img.style.height = fontSize;
+          img.style.width = 'auto';
+          img.style.verticalAlign = 'middle';
+          img.style.display = 'inline-block';
+          img.style.margin = '0 0.1vw';
+          if (spin) img.className = 'spin';
+          arr.push(img);
+          emojiFetches.push(
+            fetch(`https://misskey.resonite.love/emojis/${emojiId}`)
+              .then(r => r.json())
+              .then(json => {
+                img.src = json.icon && json.icon.url ? json.icon.url : '';
+              })
+              .catch(() => {
+                img.style.display = 'none';
+              })
+          );
+          last = regex.lastIndex;
+        }
+        if (last < str.length) {
+          arr.push(document.createTextNode(str.slice(last)));
+        }
+        return arr;
+      }
+
+      // パース実行
+      nodes = await parseBlocks(text);
+
+      // spanでまとめてappend
+      const textSpan = document.createElement('span');
+      nodes.forEach(n => textSpan.appendChild(n));
+      comment.appendChild(textSpan);
+
+      // --- ユーティリティ: emoji展開 ---
+      async function parseTextWithEmoji(str, emojiFetches, fontSize) {
+        const regex = /(:[a-zA-Z0-9_]+:)/g;
+        let last = 0;
+        let m;
+        const arr = [];
+        while ((m = regex.exec(str)) !== null) {
+          if (m.index > last) {
+            arr.push(document.createTextNode(str.slice(last, m.index)));
+          }
+          const emojiId = m[1].slice(1, -1);
+          const img = document.createElement('img');
+          img.alt = m[1];
+          img.style.height = fontSize;
+          img.style.width = 'auto';
+          img.style.verticalAlign = 'middle';
+          img.style.display = 'inline-block';
+          img.style.margin = '0 0.1vw';
+          arr.push(img);
+          emojiFetches.push(
+            fetch(`https://misskey.resonite.love/emojis/${emojiId}`)
+              .then(r => r.json())
+              .then(json => {
+                img.src = json.icon && json.icon.url ? json.icon.url : '';
+              })
+              .catch(() => {
+                img.style.display = 'none';
+              })
+          );
+          last = regex.lastIndex;
+        }
+        if (last < str.length) {
+          arr.push(document.createTextNode(str.slice(last)));
+        }
+        return arr;
+      }
 
       // 行を決める
       const row = getAvailableRow();
@@ -85,6 +277,9 @@
       });
 
       container.appendChild(comment);
+
+      // emoji画像の取得を待つ
+      await Promise.all(emojiFetches);
     }
 
     // WebSocket接続（自動再接続付き）
@@ -95,7 +290,7 @@
         try {
           const data = JSON.parse(event.data);
           if (data.text) {
-            showComment(data.text);
+            showComment(data);
           }
         } catch (e) {
           // 無視

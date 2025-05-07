@@ -3,7 +3,7 @@ import WebSocket from 'ws';
 // 設定: 必要に応じて書き換えてください
 const MISSKEY_INSTANCE = 'misskey.resonite.love'; // 例: 'misskey.io' や 'misskey.example.com'
 const ACCESS_TOKEN = 'dqLZCuimGckjyVIkRsCFFY2NmgPdlf75'; // Misskeyのアクセストークン
-const CHANNEL_ID = "9onhhto0or"; // チャンネル監視時はチャンネルIDを指定。LTLならnull
+const CHANNEL_ID = "a5qdqhoc15"; // チャンネル監視時はチャンネルIDを指定。LTLならnull
 
 let ws;
 let wsecho;
@@ -45,7 +45,7 @@ function connectMisskeyWS() {
 
         const packed_data = {
             channel: msg.body.id,
-            userId: msg.body.body.userId,
+            userId: msg.body.body.userId ?? "",
             user_display_name: msg.body.body.user.name ?? "",
             user_username: msg.body.body.user.username,
             user_avatar_url: msg.body.body.user.avatarUrl ?? "",
