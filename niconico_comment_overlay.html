@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>ニコニコ風コメントオーバーレイ</title>
+  <style>
+    html, body {
+      width: 100vw;
+      height: 100vh;
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+      background: transparent;
+    }
+    #comment-container {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      pointer-events: none;
+      z-index: 1;
+    }
+    .comment {
+      position: absolute;
+      white-space: nowrap;
+      font-size: 5vw;
+      font-weight: bold;
+      color: white;
+      text-shadow: 2px 2px 4px #000, 0 0 10px #000;
+      will-change: transform;
+      user-select: none;
+      pointer-events: none;
+      animation: move-left 8s linear forwards;
+    }
+    @keyframes move-left {
+      from {
+        transform: translateX(100vw);
+      }
+      to {
+        transform: translateX(-100%);
+      }
+    }
+  </style>
+</head>
+<body>
+  <div id="comment-container"></div>
+  <script>
+    // 透過背景
+    document.body.style.background = "transparent";
+    document.documentElement.style.background = "transparent";
+
+    // コメントの縦位置をランダムにするための行数
+    const ROWS = 10;
+    const usedRows = new Array(ROWS).fill(0);
+
+    function getAvailableRow() {
+      // 空いてる行を探す
+      for (let i = 0; i < ROWS; i++) {
+        if (usedRows[i] === 0) return i;
+      }
+      // 全部埋まってたらランダム
+      return Math.floor(Math.random() * ROWS);
+    }
+
+    function releaseRow(row) {
+      usedRows[row] = 0;
+    }
+
+    function showComment(text) {
+      const container = document.getElementById('comment-container');
+      const comment = document.createElement('div');
+      comment.className = 'comment';
+      comment.textContent = text;
+
+      // 行を決める
+      const row = getAvailableRow();
+      usedRows[row] = 1;
+      comment.style.top = (row * (100 / ROWS)) + 'vh';
+
+      // アニメーション終了でDOMから削除
+      comment.addEventListener('animationend', () => {
+        container.removeChild(comment);
+        releaseRow(row);
+      });
+
+      container.appendChild(comment);
+    }
+
+    // WebSocket接続
+    const ws = new WebSocket("wss://wsecho.kokoa.dev/kokolive/official/comment");
+    ws.onmessage = function(event) {
+      try {
+        const data = JSON.parse(event.data);
+        if (data.text) {
+          showComment(data.text);
+        }
+      } catch (e) {
+        // 無視
+      }
+    };
+    ws.onopen = function() {
+      // 必要ならここで何か
+    };
+    ws.onclose = function() {
+      // 再接続など必要なら
+    };
+  </script>
+</body>
+</html>
