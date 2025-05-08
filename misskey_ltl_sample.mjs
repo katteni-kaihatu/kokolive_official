@@ -45,7 +45,7 @@ function connectMisskeyWS() {
 
         const packed_data = {
             channel: msg.body.id,
-            userId: msg.body.body.userId ?? "",
+            userId: msg.body.body?.userId ?? "",
             user_display_name: msg.body.body.user.name ?? "",
             user_username: msg.body.body.user.username,
             user_avatar_url: msg.body.body.user.avatarUrl ?? "",
