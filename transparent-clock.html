@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ローカル時間透過フルワイド時計</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: transparent;
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            width: 100vw;
+        }
+        
+        .clock-container {
+            width: 100%;
+            text-align: center;
+        }
+        
+        .clock {
+            font-family: 'Arial', sans-serif;
+            font-weight: bold;
+            color: rgba(255, 255, 255, 0.7); /* 透明度70%の白文字 */
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+            display: inline-block;
+            width: 100%;
+            font-size: 20vw; /* ビューポートの幅に合わせて文字サイズを調整 */
+        }
+    </style>
+</head>
+<body>
+    <div class="clock-container">
+        <div class="clock" id="clock">00:00</div>
+    </div>
+
+    <script>
+        function updateClock() {
+            // 現在の日時を取得（ローカルタイムゾーンで）
+            const now = new Date();
+            
+            // 時間と分だけを表示
+            const hours = now.getHours().toString().padStart(2, '0');
+            const minutes = now.getMinutes().toString().padStart(2, '0');
+            
+            document.getElementById('clock').textContent = `${hours}:${minutes}`;
+        }
+        
+        // 時計のサイズを最適化する関数
+        function optimizeClockSize() {
+            const clockElement = document.getElementById('clock');
+            const containerWidth = document.querySelector('.clock-container').offsetWidth;
+            
+            // フォントサイズはvwユニットですでに調整しているため、
+            // 必要に応じてここで追加の調整が可能
+        }
+        
+        // 即時実行して初期表示
+        updateClock();
+        optimizeClockSize();
+        
+        // リサイズ時にサイズを再調整
+        window.addEventListener('resize', optimizeClockSize);
+        
+        // 1秒ごとに更新
+        setInterval(updateClock, 1000);
+    </script>
+</body>
+</html>
